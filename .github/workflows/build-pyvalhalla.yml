@@ -120,7 +120,6 @@ jobs:
           CIBW_ENVIRONMENT: >
             CMAKE_ARGS="-DVALHALLA_VERSION_MODIFIER=smaller-${{ github.sha }}"
             LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
-            PIP_NO_BUILD_ISOLATION="0"
           MACOSX_DEPLOYMENT_TARGET: "14.0"
         run: |
           python -m cibuildwheel \
