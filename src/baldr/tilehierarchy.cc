@@ -15,17 +15,17 @@ const std::vector<TileLevel>& TileHierarchy::levels() {
 
       TileLevel{0, stringToRoadClass("Primary"), "highway",
                 midgard::Tiles<midgard::PointLL>{{{-180, -90}, {180, 90}},
-                                                 4,
+                                                 2,
                                                  static_cast<unsigned short>(kBinsDim)}},
 
       TileLevel{1, stringToRoadClass("Tertiary"), "arterial",
                 midgard::Tiles<midgard::PointLL>{{{-180, -90}, {180, 90}},
-                                                 1,
+                                                 0.5,
                                                  static_cast<unsigned short>(kBinsDim)}},
 
       TileLevel{2, stringToRoadClass("ServiceOther"), "local",
                 midgard::Tiles<midgard::PointLL>{{{-180, -90}, {180, 90}},
-                                                 .25,
+                                                 .125,
                                                  static_cast<unsigned short>(kBinsDim)}},
   };
 
@@ -37,7 +37,7 @@ const TileLevel& TileHierarchy::GetTransitLevel() {
   static const TileLevel transit_level_ =
       {3, stringToRoadClass("ServiceOther"), "transit",
        midgard::Tiles<midgard::PointLL>{{{-180, -90}, {180, 90}},
-                                        .25,
+                                        .125,
                                         static_cast<unsigned short>(kBinsDim)}};
 
   return transit_level_;
