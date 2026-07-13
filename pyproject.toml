@@ -1,5 +1,5 @@
 [project]
-name = "pyvalhalla"
+name = "pyvalhalla-smaller-tiles"
 dynamic = ["version"]
 requires-python = ">=3.9.0"
 authors = [{ name = "Nils Nolde" }, {name = "Kevin Kreiser"}]
