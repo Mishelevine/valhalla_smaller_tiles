@@ -1,0 +1,136 @@
+name: Build custom pyvalhalla with smaller tiles
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - "v*-smaller.*"
+
+jobs:
+  build-linux-x86-64:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cibuildwheel==2.23.3
+
+      - name: Build wheel
+        env:
+          CIBW_BUILD: cp312-manylinux_x86_64
+          CIBW_SKIP: "*musllinux*"
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_BUILD_VERBOSITY: "1"
+          CIBW_ENVIRONMENT: >
+            CMAKE_ARGS="-DVALHALLA_VERSION_MODIFIER=smaller-${{ github.sha }}"
+            LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
+        run: |
+          python -m cibuildwheel \
+            --platform linux \
+            --output-dir wheelhouse
+
+      - name: Upload Linux wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyvalhalla-linux-x86_64
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 30
+
+  build-macos-arm64:
+    name: macOS arm64
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          brew install \
+            autoconf \
+            automake \
+            boost \
+            ccache \
+            cmake \
+            curl \
+            czmq \
+            gdal \
+            libgeotiff \
+            libspatialite \
+            libtiff \
+            libtool \
+            lz4 \
+            luajit \
+            ninja \
+            protobuf \
+            spatialite-tools \
+            sqlite3 \
+            wget
+
+      - name: Build and install prime_server
+        run: |
+          git clone \
+            --depth 1 \
+            --recurse-submodules \
+            https://github.com/kevinkreiser/prime_server.git
+
+          cd prime_server
+          ./autogen.sh
+          ./configure
+          make -j"$(sysctl -n hw.logicalcpu)"
+          sudo make install
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            cibuildwheel==2.23.3 \
+            delocate
+
+      - name: Build wheel
+        env:
+          CIBW_BUILD: cp312-macosx_arm64
+          CIBW_ARCHS_MACOS: arm64
+          CIBW_BUILD_VERBOSITY: "1"
+          CIBW_ENVIRONMENT: >
+            CMAKE_ARGS="-DVALHALLA_VERSION_MODIFIER=smaller-${{ github.sha }}"
+            LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
+            PIP_NO_BUILD_ISOLATION="0"
+          MACOSX_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          python -m cibuildwheel \
+            --platform macos \
+            --output-dir wheelhouse
+
+      - name: Upload macOS wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyvalhalla-macos-arm64
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 30
