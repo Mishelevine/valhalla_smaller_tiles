@@ -38,6 +38,21 @@ option(ENABLE_STATIC_LIBRARY_MODULES "If ON builds Valhalla modules as STATIC li
 option(ENABLE_GEOTIFF "Whether to include libgeotiff; currently only used for raster serialization of isotile grid" ON)
 option(ENABLE_LZ4 "Enable LZ4 decompression support for elevation tiles and OSM PBF files" ON)
 option(INSTALL_TEST_LIB "Install Valhalla's own test lib" OFF)
+option(ENABLE_LOCATE_ONLY "Build only the locate HTTP service and its dependencies" OFF)
+
+if(ENABLE_LOCATE_ONLY)
+  set(ENABLE_TOOLS OFF)
+  set(ENABLE_DATA_TOOLS OFF)
+  set(ENABLE_SERVICES ON)
+  set(ENABLE_HTTP OFF)
+  set(ENABLE_PYTHON_BINDINGS OFF)
+  set(ENABLE_NODE_BINDINGS OFF)
+  set(ENABLE_TESTS OFF)
+  set(INSTALL_TEST_LIB OFF)
+  set(ENABLE_GEOTIFF OFF)
+  set(ENABLE_LZ4 OFF)
+  add_compile_definitions(VALHALLA_LOCATE_ONLY)
+endif()
 
 set(LOGGING_LEVEL "" CACHE STRING "Logging level, default is INFO")
 set_property(CACHE LOGGING_LEVEL PROPERTY STRINGS "NONE;ALL;ERROR;WARN;INFO;DEBUG;TRACE")
@@ -303,6 +318,9 @@ set(valhalla_data_tools valhalla_build_statistics valhalla_ways_to_edges valhall
 
 ## Valhalla services
 set(valhalla_services valhalla_loki_worker valhalla_odin_worker valhalla_thor_worker)
+if(ENABLE_LOCATE_ONLY)
+  set(valhalla_services valhalla_locate_service)
+endif()
 
 if(ENABLE_TOOLS)
   foreach(program ${valhalla_programs})

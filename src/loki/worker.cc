@@ -234,13 +234,19 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
       max_contour_min(config.get<size_t>("service_limits.isochrone.max_time_contour")),
       max_contour_km(config.get<size_t>("service_limits.isochrone.max_distance_contour")),
       max_trace_shape(config.get<size_t>("service_limits.trace.max_shape")),
+#ifndef VALHALLA_LOCATE_ONLY
       sample(config.get<std::string>("additional_data.elevation", "")),
+#endif
       max_elevation_shape(config.get<size_t>("service_limits.skadi.max_shape")),
       min_resample(config.get<float>("service_limits.skadi.min_resample")),
-      allow_hard_exclusions(config.get<bool>("service_limits.allow_hard_exclusions", false)),
+      allow_hard_exclusions(config.get<bool>("service_limits.allow_hard_exclusions", false))
+#ifndef VALHALLA_LOCATE_ONLY
+      ,
       candidate_query_(*reader,
                        TileHierarchy::levels().back().tiles.TileSize() / 10.0f,
-                       TileHierarchy::levels().back().tiles.TileSize() / 10.0f) {
+                       TileHierarchy::levels().back().tiles.TileSize() / 10.0f)
+#endif
+{
 
   bbox_intersection_.reserve(1e5); // TODO: how much memory should we reserve for this?
 
@@ -251,6 +257,11 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
     if (!Options_Action_Enum_Parse(path, &action)) {
       throw std::runtime_error("Action not supported " + path);
     }
+#ifdef VALHALLA_LOCATE_ONLY
+    if (action != Options::locate) {
+      throw std::runtime_error("The locate-only service supports only the locate action");
+    }
+#endif
     actions.insert(action);
     action_str.append("'/" + path + "' ");
   }
@@ -465,14 +476,17 @@ loki_worker_t::work(const std::list<zmq::message_t>& job,
     service_worker_t::set_interrupt(&interrupt_function);
     // do request specific processing
     switch (options.action()) {
+#ifndef VALHALLA_LOCATE_ONLY
       case Options::route:
       case Options::centroid:
         route(request);
         result.messages.emplace_back(request.SerializeAsString());
         break;
+#endif
       case Options::locate:
         result = to_response(locate(request), info, request);
         break;
+#ifndef VALHALLA_LOCATE_ONLY
       case Options::sources_to_targets:
       case Options::optimized_route:
         matrix(request);
@@ -510,6 +524,7 @@ loki_worker_t::work(const std::list<zmq::message_t>& job,
       case Options::tile:
         result = to_response(render_tile(request), info, request, mvt_headers);
         break;
+#endif
       default:
         // apparently you wanted something that we figured we'd support but havent written yet
         throw valhalla_exception_t{107};

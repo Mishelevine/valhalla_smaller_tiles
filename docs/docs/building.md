@@ -247,3 +247,32 @@ curl http://localhost:8002/route --data '{"locations":[{"lat":47.365109,"lon":8.
 
 #HAVE FUN!
 ```
+
+To keep completed graph tiles compressed on disk, set `mjolnir.compress_tiles` to
+`true` (or generate the config with `--mjolnir-compress-tiles true`). After
+validation and any requested cleanup, the builder writes gzip level 6 files such
+as `2/003/273/160.gph.gz`. Tile IDs and directories are unchanged. Every gzip file
+is checked against its original bytes before any `.gph` files are removed.
+Compression uses fixed-size buffers; both the original and compressed files occupy
+disk space until all tiles have been verified. The default is `false`.
+
+After successful validation and finalization, the builder also writes
+`build_info.json` in `mjolnir.tile_dir`:
+
+```json
+{"build_timestamp": 1791356400}
+```
+
+`build_timestamp` is an integer Unix timestamp in seconds, recorded at completion.
+Builds stopped before `validate` remain uncompressed and do not publish build
+metadata. A new build or resumed graph modification removes previous metadata;
+a cleanup-only run preserves it. Resume partial builds before validation, or
+rebuild from `initialize` to modify an already compressed tileset.
+
+For Python and C++ readers, point `mjolnir.tile_dir` at this directory and omit
+`mjolnir.tile_extract` or set it to `""`. Both `/locate` and `/trace_attributes`
+read `.gph.gz` automatically. The regular tar extract builder expects `.gph`
+files, so skip `valhalla_build_extract` when using compressed directory tiles.
+When distributing tiles in ZIP files, preserve relative `.gph.gz` paths and
+extract only the ZIP on the receiving device. Include `build_info.json` in the
+package if the device needs the graph build timestamp.

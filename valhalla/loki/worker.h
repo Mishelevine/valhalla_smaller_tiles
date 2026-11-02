@@ -5,11 +5,13 @@
 #include <valhalla/baldr/graphreader.h>
 #include <valhalla/exceptions.h>
 #include <valhalla/loki/search.h>
+#ifndef VALHALLA_LOCATE_ONLY
 #include <valhalla/meili/candidate_search.h>
+#include <valhalla/skadi/sample.h>
+#endif
 #include <valhalla/midgard/pointll.h>
 #include <valhalla/proto/options.pb.h>
 #include <valhalla/sif/costfactory.h>
-#include <valhalla/skadi/sample.h>
 #include <valhalla/worker.h>
 
 #include <boost/property_tree/ptree.hpp>
@@ -106,7 +108,9 @@ protected:
   float max_search_radius;
   unsigned int max_trace_alternates;
   size_t max_trace_alternates_shape;
+#ifndef VALHALLA_LOCATE_ONLY
   skadi::sample sample;
+#endif
   size_t max_elevation_shape;
   float min_resample;
   unsigned int max_alternates;
@@ -116,7 +120,9 @@ protected:
   std::unordered_set<baldr::GraphId> bbox_intersection_;
 
   // for /tile requests
+#ifndef VALHALLA_LOCATE_ONLY
   meili::CandidateGridQuery candidate_query_;
+#endif
   ZoomConfig min_zoom_road_class_;
   std::string mvt_cache_dir_;
   uint32_t mvt_cache_min_zoom_;

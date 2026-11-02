@@ -1,0 +1,14 @@
+services:
+  locate:
+    image: ${VALHALLA_IMAGE:-valhalla-locate:amd64}
+    pull_policy: never
+    ports:
+      - "8002:8002"
+    volumes:
+      - type: bind
+        source: ${VALHALLA_TILE_EXTRACT:-./valhalla_tiles.tar}
+        target: /custom_files/valhalla_tiles.tar
+        read_only: true
+        bind:
+          create_host_path: false
+    restart: unless-stopped

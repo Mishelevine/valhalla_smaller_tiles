@@ -1,0 +1,63 @@
+FROM ubuntu:24.04 AS dependencies
+
+ARG CONCURRENCY=4
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    autoconf automake build-essential ca-certificates cmake git libboost-dev libcurl4-openssl-dev \
+    libczmq-dev libprotobuf-dev libtool libzmq3-dev ninja-build pkg-config protobuf-compiler \
+    python3 zlib1g-dev && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/prime_server
+# prime_server checks ZeroMQ return values with assertions.
+RUN git init && git remote add origin https://github.com/kevinkreiser/prime_server.git && \
+    git fetch --depth 1 origin bfd15349fc5ddb578b78e266ba9012b51a2086b3 && \
+    git checkout --detach FETCH_HEAD && git submodule update --init --recursive --depth 1 && \
+    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE=-O3 && \
+    cmake --build build --target prime_server -j"${CONCURRENCY}" && \
+    cp -a build/libprime_server.so* /usr/local/lib/ && \
+    cp -a prime_server /usr/local/include/ && \
+    mkdir -p /usr/local/lib/pkgconfig && \
+    cp build/libprime_server.pc /usr/local/lib/pkgconfig/ && ldconfig
+
+FROM dependencies AS builder
+WORKDIR /src/valhalla
+COPY CMakeLists.txt libvalhalla.pc.in LICENSE.md CHANGELOG.md COPYING README.md ./
+COPY cmake/ cmake/
+COPY date_time/ date_time/
+COPY proto/ proto/
+COPY scripts/ scripts/
+COPY src/ src/
+COPY third_party/ third_party/
+COPY valhalla/ valhalla/
+
+ARG CONCURRENCY=4
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_LOCATE_ONLY=ON -DBUILD_SHARED_LIBS=OFF -DENABLE_CCACHE=OFF \
+    -DENABLE_SINGLE_FILES_WERROR=OFF && \
+    cmake --build build --target valhalla_locate_service -j"${CONCURRENCY}" && \
+    strip build/valhalla_locate_service
+
+RUN python3 scripts/valhalla_build_config \
+    --mjolnir-tile-extract /custom_files/valhalla_tiles.tar --mjolnir-tile-dir '' \
+    --mjolnir-use-lru-mem-cache false --mjolnir-use-simple-mem-cache false \
+    --mjolnir-global-synchronized-cache false --loki-actions locate --loki-use-connectivity false \
+    --loki-service-defaults-radius 0 --loki-service-defaults-minimum-reachability 0 \
+    --loki-service-defaults-search-cutoff 100 --loki-service-defaults-node-snap-tolerance 0 \
+    > /tmp/valhalla.json && \
+    python3 -c 'import json; p="/tmp/valhalla.json"; c=json.load(open(p)); c["mjolnir"].pop("traffic_extract", None); json.dump(c, open(p, "w"), indent=2)'
+
+RUN mkdir -p /opt/runtime/lib && cp -a /usr/local/lib/libprime_server.so* /opt/runtime/lib/
+
+FROM ubuntu:24.04 AS runner
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    libcurl4t64 libczmq4 libprotobuf-lite32t64 libzmq5 zlib1g && \
+    rm -rf /var/lib/apt/lists/* && mkdir -p /custom_files /etc/valhalla
+COPY --from=builder /src/valhalla/build/valhalla_locate_service /usr/local/bin/
+COPY --from=builder /opt/runtime/lib/ /usr/local/lib/
+COPY --from=builder /tmp/valhalla.json /etc/valhalla/valhalla.json
+COPY COPYING LICENSE.md /usr/share/doc/valhalla/
+COPY --from=dependencies /tmp/prime_server/COPYING /usr/share/doc/prime_server/COPYING
+RUN ldconfig
+EXPOSE 8002
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["valhalla_locate_service"]
+CMD ["/etc/valhalla/valhalla.json", "1"]

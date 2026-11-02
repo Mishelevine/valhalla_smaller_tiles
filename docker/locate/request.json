@@ -1,0 +1,13 @@
+{
+  "locations": [
+    {
+      "lat": 55.751244,
+      "lon": 37.618423,
+      "radius": 0,
+      "search_cutoff": 50,
+      "minimum_reachability": 0
+    }
+  ],
+  "costing": "auto",
+  "verbose": false
+}

@@ -22,9 +22,14 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <cpp-statsd-client/StatsdClient.hpp>
+#include <zlib.h>
 
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include <filesystem>
 #include <format>
+#include <memory>
 #include <regex>
 
 using boost::property_tree::ptree;
@@ -47,6 +52,7 @@ const std::string cr_from_file = "complex_from_restrictions.bin";
 const std::string cr_to_file = "complex_to_restrictions.bin";
 const std::string new_to_old_file = "new_nodes_to_old_nodes.bin";
 const std::string old_to_new_file = "old_nodes_to_new_nodes.bin";
+const std::string build_info_file = "build_info.json";
 
 // read a tile's header, let the callback mutate it, write it back
 template <typename Fn> void update_tile_header(const std::filesystem::path& p, const Fn& mutate) {
@@ -70,6 +76,83 @@ template <typename Fn> void for_each_tile(const std::string& tile_dir, const Fn&
     if (it->is_regular_file() && it->path().extension() == ".gph") {
       fn(it->path());
     }
+  }
+}
+
+void compress_tile(const std::filesystem::path& path) {
+  auto compressed_path = path;
+  compressed_path += ".gz";
+  auto temporary_path = compressed_path;
+  temporary_path += ".tmp";
+  try {
+    std::ifstream source(path, std::ios::binary);
+    if (!source)
+      throw std::runtime_error("Failed to open tile " + path.string());
+    std::unique_ptr<gzFile_s, decltype(&gzclose)> output(gzopen(temporary_path.string().c_str(),
+                                                                "wb6"),
+                                                         gzclose);
+    if (!output)
+      throw std::runtime_error("Failed to open gzip file " + temporary_path.string());
+    std::array<char, 65536> buffer;
+    while (source) {
+      source.read(buffer.data(), buffer.size());
+      const auto size = static_cast<unsigned int>(source.gcount());
+      if (gzwrite(output.get(), buffer.data(), size) != static_cast<int>(size))
+        throw std::runtime_error("Failed to compress tile " + path.string());
+    }
+    if (!source.eof())
+      throw std::runtime_error("Failed to read tile " + path.string());
+    if (gzclose(output.release()) != Z_OK)
+      throw std::runtime_error("Failed to finish gzip file " + temporary_path.string());
+
+    source.clear();
+    source.seekg(0);
+    std::unique_ptr<gzFile_s, decltype(&gzclose)> input(gzopen(temporary_path.string().c_str(), "rb"),
+                                                        gzclose);
+    if (!input)
+      throw std::runtime_error("Failed to open gzip file " + temporary_path.string());
+    std::array<char, 65536> restored;
+    while (source) {
+      source.read(buffer.data(), buffer.size());
+      const auto size = static_cast<unsigned int>(source.gcount());
+      if (gzread(input.get(), restored.data(), size) != static_cast<int>(size) ||
+          !std::equal(buffer.begin(), buffer.begin() + size, restored.begin()))
+        throw std::runtime_error("Gzip verification failed for " + path.string());
+    }
+    if (!source.eof() || gzread(input.get(), restored.data(), 1) != 0)
+      throw std::runtime_error("Gzip verification failed for " + path.string());
+    if (gzclose(input.release()) != Z_OK)
+      throw std::runtime_error("Failed to read gzip file " + temporary_path.string());
+    std::filesystem::rename(temporary_path, compressed_path);
+  } catch (...) {
+    std::error_code ec;
+    std::filesystem::remove(temporary_path, ec);
+    throw;
+  }
+}
+
+void write_build_info(const std::string& tile_dir) {
+  const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
+  rapidjson::writer_wrapper_t writer(256);
+  writer.start_object();
+  writer("build_timestamp", static_cast<int64_t>(timestamp));
+  writer.end_object();
+  const auto path = std::filesystem::path(tile_dir) / build_info_file;
+  auto temporary_path = path;
+  temporary_path += ".tmp";
+  try {
+    std::ofstream file(temporary_path);
+    file << writer.get_buffer() << '\n';
+    file.close();
+    if (!file)
+      throw std::runtime_error("Failed to write build metadata " + temporary_path.string());
+    std::filesystem::rename(temporary_path, path);
+  } catch (...) {
+    std::error_code ec;
+    std::filesystem::remove(temporary_path, ec);
+    throw;
   }
 }
 
@@ -650,6 +733,9 @@ bool build_tile_set(const boost::property_tree::ptree& original_config,
     tile_dir.push_back(std::filesystem::path::preferred_separator);
   }
 
+  if (start_stage <= BuildStage::kValidate)
+    remove_temp_file(tile_dir + build_info_file);
+
   // During the initialize stage the tile directory will be purged (if it already exists)
   // and will be created if it does not already exist
   if (start_stage == BuildStage::kInitialize) {
@@ -870,6 +956,20 @@ bool build_tile_set(const boost::property_tree::ptree& original_config,
     remove_temp_file(tile_manifest);
     OSMData::cleanup_temp_files(tile_dir);
     log_stage(BuildStage::kCleanup);
+  }
+  if (start_stage <= BuildStage::kValidate && BuildStage::kValidate <= end_stage) {
+    if (config.get<bool>("mjolnir.compress_tiles", false)) {
+      size_t count = 0;
+      for_each_tile(tile_dir, [&](const std::filesystem::path& path) {
+        compress_tile(path);
+        ++count;
+      });
+      // Retain every source tile until the entire compressed set has been verified.
+      for_each_tile(tile_dir,
+                    [](const std::filesystem::path& path) { std::filesystem::remove(path); });
+      LOG_INFO("Compressed {} graph tiles", count);
+    }
+    write_build_info(tile_dir);
   }
   return true;
 }

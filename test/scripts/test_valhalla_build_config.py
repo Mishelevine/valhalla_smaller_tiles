@@ -9,6 +9,11 @@ mock_parser.add_argument = MagicMock()
 
 
 class TestBuildConfig(unittest.TestCase):
+    def test_compress_tiles_option(self):
+        self.assertFalse(valhalla_build_config.config["mjolnir"]["compress_tiles"])
+        args = valhalla_build_config.parser.parse_args(["--mjolnir-compress-tiles", "true"])
+        self.assertTrue(args.mjolnir_compress_tiles)
+
     def test_add_leaf_types(self):
         # test all data types, except for bool & list
         # they have custom lambdas we can't test this way

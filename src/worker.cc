@@ -745,10 +745,12 @@ void from_json(rapidjson::Document& doc, Options::Action action, Api& api) {
   // Whether or not to run isochrones in reverse in absence of time dependence
   options.set_reverse(rapidjson::get<bool>(doc, "/reverse", false));
 
+#ifndef VALHALLA_LOCATE_ONLY
   auto language = rapidjson::get_optional<std::string>(doc, "/language");
   if (language && odin::get_locales().find(*language) != odin::get_locales().end()) {
     options.set_language(*language);
   }
+#endif
   if (!options.has_language_case()) {
     options.set_language("en-US");
   }

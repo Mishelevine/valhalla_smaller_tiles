@@ -1,0 +1,12 @@
+.git
+**/.git
+.venv
+build*
+data
+.codex
+.agents
+.aws
+*.tar
+*.osm.pbf
+uv.lock
+valhalla.json
