@@ -88,7 +88,7 @@ class TileResolver:
 
     def add_to_tar(self, tar: tarfile.TarFile):
         """
-        Adds the self.matched_paths to the passed tar file.
+        Adds the matched tiles and optional build metadata to the passed tar file.
         """
         # deduplicate the list (geojson variant might've added dups)
         # since 3.7 python dicts are insertion-ordered, so order is preserved
@@ -102,6 +102,17 @@ class TileResolver:
             else:
                 tar.add(str(self.path.joinpath(normalized_path)), arcname=normalized_path)
                 tar_member = tar.getmember(normalized_path)
+
+        if self._is_tar:
+            try:
+                metadata = self._tar_obj.getmember("build_info.json")
+            except KeyError:
+                return
+            tar.addfile(metadata, self._tar_obj.extractfile(metadata))
+        else:
+            metadata = self.path / "build_info.json"
+            if metadata.is_file():
+                tar.add(metadata, arcname="build_info.json")
 
 
 description = "Builds a tar extract from the tiles in mjolnir.tile_dir to the path specified in mjolnir.tile_extract."

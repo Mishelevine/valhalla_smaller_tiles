@@ -8,6 +8,7 @@ import unittest.mock
 from pathlib import Path
 import struct
 import os
+from tempfile import TemporaryDirectory
 
 import valhalla_build_extract
 from valhalla_build_extract import GRAPHTILE_SKIP_BYTES, TILE_SIZES, TileHeader, TileResolver
@@ -49,6 +50,59 @@ def tile_base_to_path(base_x: int, base_y: int, level: int, fake_dir: Path) -> P
 
 
 class TestBuildExtract(unittest.TestCase):
+    def test_build_info_in_extract(self):
+        for source_is_tar in (False, True):
+            for with_metadata in (False, True):
+                for with_traffic in (False, True):
+                    with self.subTest(source_is_tar=source_is_tar, with_metadata=with_metadata,
+                                      with_traffic=with_traffic), TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        tile_dir = root / "tiles"
+                        tile_path = Path("2/000/818/660.gph")
+                        tile = tile_dir / tile_path
+                        tile.parent.mkdir(parents=True)
+                        tile_data = bytes(64)
+                        tile.write_bytes(tile_data)
+                        metadata = b'{"build_timestamp": 1791356400}\n'
+                        if with_metadata:
+                            (tile_dir / "build_info.json").write_bytes(metadata)
+
+                        source = tile_dir
+                        if source_is_tar:
+                            source = root / "source.tar"
+                            with tarfile.open(source, "w") as archive:
+                                archive.add(tile, arcname=tile_path.as_posix())
+                                if with_metadata:
+                                    archive.add(tile_dir / "build_info.json", arcname="build_info.json")
+
+                        resolver = TileResolver(source)
+                        resolver.matched_paths = resolver.normalized_tile_paths
+                        output = root / "tiles.tar"
+                        traffic = root / "traffic.tar"
+                        config = {"mjolnir": {"traffic_extract": str(traffic)}}
+                        if with_traffic:
+                            valhalla_build_extract.create_extracts(config, True, resolver, output)
+                        else:
+                            with self.assertRaises(SystemExit) as exit_result:
+                                valhalla_build_extract.create_extracts(config, False, resolver, output)
+                            self.assertEqual(exit_result.exception.code, 0)
+
+                        with tarfile.open(output) as archive:
+                            names = ["index.bin", tile_path.as_posix()]
+                            if with_metadata:
+                                names.append("build_info.json")
+                                self.assertEqual(archive.extractfile("build_info.json").read(), metadata)
+                            self.assertEqual(archive.getnames(), names)
+                            entry = struct.unpack(INDEX_BIN_FORMAT, archive.extractfile("index.bin").read())
+                            member = archive.getmember(tile_path.as_posix())
+                            self.assertEqual(entry, (member.offset_data, 6549282, len(tile_data)))
+                        with output.open("rb") as file:
+                            file.seek(entry[0])
+                            self.assertEqual(file.read(entry[2]), tile_data)
+                        if with_traffic:
+                            with tarfile.open(traffic) as archive:
+                                self.assertEqual(archive.getnames(), ["index.bin", tile_path.as_posix()])
+
     def test_tile_intersects_bbox(self):
         # bogus tile dir
         tile_dir = Path("/foo/")

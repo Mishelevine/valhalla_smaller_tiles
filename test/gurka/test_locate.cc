@@ -407,6 +407,37 @@ TEST_F(Search, CutoffFarAwayFindsNothing) {
   EXPECT_EQ(edge_count(api), 0);
 }
 
+TEST_F(Search, ReportsTileCoverageOnRequest) {
+  constexpr auto locations = R"("locations":[
+    {"lat":-0.005,"lon":0.01,"search_cutoff":1500},
+    {"lat":-0.06,"lon":0.06,"search_cutoff":50},
+    {"lat":-0.06,"lon":-0.0001,"search_cutoff":50},
+    {"lat":-0.06,"lon":-0.0001,"search_cutoff":5}
+  ])";
+  tyr::actor_t actor(map.config, true);
+  const std::string request = std::string{"{\"costing\":\"auto\","} + locations;
+  rapidjson::Document response;
+  response.Parse(actor.locate(request + ",\"include_tile_coverage\":true}"));
+  ASSERT_TRUE(response.IsArray());
+  ASSERT_EQ(response.Size(), 4);
+  const bool expected[] = {true, true, true, false};
+  for (rapidjson::SizeType i = 0; i < response.Size(); ++i) {
+    ASSERT_TRUE(response[i].HasMember("has_tiles_in_search_area"));
+    ASSERT_TRUE(response[i]["has_tiles_in_search_area"].IsBool());
+    EXPECT_EQ(response[i]["has_tiles_in_search_area"].GetBool(), expected[i]);
+    EXPECT_EQ(response[i]["edges"].Empty(), i != 0);
+  }
+
+  for (const auto* suffix : {"}", ",\"include_tile_coverage\":false}"}) {
+    response.Parse(actor.locate(request + suffix));
+    ASSERT_TRUE(response.IsArray());
+    ASSERT_EQ(response.Size(), 4);
+    for (const auto& location : response.GetArray()) {
+      EXPECT_FALSE(location.HasMember("has_tiles_in_search_area"));
+    }
+  }
+}
+
 TEST_F(Search, CutoffTooSmallFindsNothing) {
   PointLL far(pt("C").lng() - 1, pt("C").lat() - 1);
   auto dist = far.Distance(pt("C"));

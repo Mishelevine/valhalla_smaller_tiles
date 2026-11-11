@@ -264,6 +264,10 @@ After successful validation and finalization, the builder also writes
 ```
 
 `build_timestamp` is an integer Unix timestamp in seconds, recorded at completion.
+`valhalla_build_extract` includes this file after the graph tiles when present,
+preserving its contents when creating an extract from a directory or another tar.
+The index remains the first archive entry; older tilesets without metadata are
+still supported.
 Builds stopped before `validate` remain uncompressed and do not publish build
 metadata. A new build or resumed graph modification removes previous metadata;
 a cleanup-only run preserves it. Resume partial builds before validation, or

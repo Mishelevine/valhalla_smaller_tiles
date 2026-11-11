@@ -100,6 +100,7 @@ message Correlation {
   double distance_from_leg_origin = 6;
   uint32 route_index = 7;     // primarily for matchings index in osrm map matching
   uint32 waypoint_index = 8;  // primarily for matched point index in osrm map matching
+  bool has_tiles_in_search_area = 9;
 }
 
 message Location {

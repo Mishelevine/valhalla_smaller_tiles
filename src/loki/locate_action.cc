@@ -24,6 +24,7 @@ std::string loki_worker_t::locate(Api& request) {
   init_locate(request);
   auto* options = request.mutable_options();
   auto* locations = options->mutable_locations();
+  const bool include_tile_coverage = options->include_tile_coverage();
   const auto& costing_name = Costing_Enum_Name(options->costing_type());
   if (costing_name == "auto_pedestrian") {
     if (locations->size() > 2) {
@@ -31,15 +32,17 @@ std::string loki_worker_t::locate(Api& request) {
     }
     google::protobuf::RepeatedPtrField<Location> start_loc(locations->begin(),
                                                            locations->begin() + 1);
-    search_.search(start_loc, mode_costing[static_cast<size_t>(TravelMode::kDrive)]);
+    search_.search(start_loc, mode_costing[static_cast<size_t>(TravelMode::kDrive)],
+                   include_tile_coverage);
     google::protobuf::RepeatedPtrField<Location> end_loc(locations->begin() + 1,
                                                          locations->begin() + 2);
-    search_.search(end_loc, mode_costing[static_cast<size_t>(TravelMode::kPedestrian)]);
+    search_.search(end_loc, mode_costing[static_cast<size_t>(TravelMode::kPedestrian)],
+                   include_tile_coverage);
     // merge them again
     locations->at(0).CopyFrom(start_loc.at(0));
     locations->at(1).CopyFrom(end_loc.at(0));
   } else {
-    search_.search(*locations, mode_costing[static_cast<size_t>(mode)]);
+    search_.search(*locations, mode_costing[static_cast<size_t>(mode)], include_tile_coverage);
   }
   return tyr::serializeLocate(request, *reader);
 }

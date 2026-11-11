@@ -30,11 +30,11 @@ public:
    * @param locations  the positions which need to be correlated to the route network
    * @param costing    a costing object by which we can determine which portions of the graph are
    *                   accessible and therefor potential candidates
-   * @return pathLocations the correlated data within the tile that matches the inputs. If a
-   * projection is not found, it will not have any entry in the returned value.
+   * @param include_tile_coverage  report whether a local tile was available for each location
    */
   void search(google::protobuf::RepeatedPtrField<Location>& locations,
-              const sif::cost_ptr_t& costing);
+              const sif::cost_ptr_t& costing,
+              bool include_tile_coverage = false);
 
   void edges_in_bounds(const midgard::AABB2<midgard::PointLL>& bounds,
                        std::unordered_set<baldr::GraphId>& edge_container);

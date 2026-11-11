@@ -663,6 +663,10 @@ void from_json(rapidjson::Document& doc, Options::Action action, Api& api) {
   } else {
     options.set_verbose(rapidjson::get(doc, "/verbose", options.verbose()));
   }
+  if (options.action() == Options::locate) {
+    options.set_include_tile_coverage(
+        rapidjson::get(doc, "/include_tile_coverage", options.include_tile_coverage()));
+  }
 
   // if specified, get the filter_action value in there
   auto filter_action_str = rapidjson::get_optional<std::string>(doc, "/filters/action");

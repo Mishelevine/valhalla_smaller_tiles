@@ -320,16 +320,25 @@ void serialize_nodes(const Location& location,
   writer.end_array();
 }
 
-void serialize(rapidjson::writer_wrapper_t& writer,
-               const Location& location,
-               GraphReader& reader,
-               bool verbose) {
-  // serialze all the edges
+void start_location(rapidjson::writer_wrapper_t& writer,
+                    const Location& location,
+                    bool include_tile_coverage) {
   writer.start_object();
   writer.set_precision(tyr::kCoordinatePrecision);
   writer("input_lat", location.ll().lat());
   writer("input_lon", location.ll().lng());
   writer.set_precision(tyr::kDefaultPrecision);
+  if (include_tile_coverage) {
+    writer("has_tiles_in_search_area", location.correlation().has_tiles_in_search_area());
+  }
+}
+
+void serialize(rapidjson::writer_wrapper_t& writer,
+               const Location& location,
+               GraphReader& reader,
+               bool verbose,
+               bool include_tile_coverage) {
+  start_location(writer, location, include_tile_coverage);
   serialize_edges(location, reader, writer, verbose);
   serialize_nodes(location, reader, writer, verbose);
 
@@ -337,14 +346,11 @@ void serialize(rapidjson::writer_wrapper_t& writer,
 }
 
 void serialize(rapidjson::writer_wrapper_t& writer,
-               const LatLng& ll,
+               const Location& location,
                const std::string& reason,
-               bool verbose) {
-  writer.start_object();
-  writer.set_precision(tyr::kCoordinatePrecision);
-  writer("input_lat", ll.lat());
-  writer("input_lon", ll.lng());
-  writer.set_precision(tyr::kDefaultPrecision);
+               bool verbose,
+               bool include_tile_coverage) {
+  start_location(writer, location, include_tile_coverage);
   writer("edges", nullptr);
   writer("nodes", nullptr);
 
@@ -362,11 +368,13 @@ std::string serializeLocate(const Api& request, GraphReader& reader) {
   rapidjson::writer_wrapper_t writer(4096);
   writer.start_array();
 
-  for (const auto& location : request.options().locations()) {
+  const auto& options = request.options();
+  for (const auto& location : options.locations()) {
     try {
-      serialize(writer, location, reader, request.options().verbose());
+      serialize(writer, location, reader, options.verbose(), options.include_tile_coverage());
     } catch (const std::exception& e) {
-      serialize(writer, location.ll(), "No data found for location", request.options().verbose());
+      serialize(writer, location, "No data found for location", options.verbose(),
+                options.include_tile_coverage());
     }
   }
   writer.end_array();

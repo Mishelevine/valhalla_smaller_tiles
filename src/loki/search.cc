@@ -864,7 +864,9 @@ struct bin_handler_t {
 
   // we keep the points sorted at each round such that unfinished ones
   // are at the front of the sorted list
-  void search(google::protobuf::RepeatedPtrField<Location>& locations, const cost_ptr_t& costing) {
+  void search(google::protobuf::RepeatedPtrField<Location>& locations,
+              const cost_ptr_t& costing,
+              bool include_tile_coverage) {
     this->costing = costing;
 
     // get the unique set of input locations and the max reachability of them all
@@ -872,6 +874,10 @@ struct bin_handler_t {
     max_reach_limit = 0;
     for (auto& loc : locations) {
       pps.emplace_back(&loc, reader);
+      if (include_tile_coverage) {
+        // Initialization advances to the first available bin or reaches the search cutoff.
+        loc.mutable_correlation()->set_has_tiles_in_search_area(pps.back().has_bin());
+      }
       max_reach_limit = std::max(max_reach_limit, loc.minimum_outbound_reachability());
       max_reach_limit = std::max(max_reach_limit, loc.minimum_inbound_reachability());
     }
@@ -991,7 +997,8 @@ Search::Search(GraphReader& reader)
 Search::~Search() = default;
 
 void Search::search(google::protobuf::RepeatedPtrField<Location>& locations,
-                    const cost_ptr_t& costing) {
+                    const cost_ptr_t& costing,
+                    bool include_tile_coverage) {
   // we cannot continue without costing
   if (!costing)
     throw std::runtime_error("No costing was provided for edge candidate search");
@@ -1000,7 +1007,7 @@ void Search::search(google::protobuf::RepeatedPtrField<Location>& locations,
   if (locations.empty())
     return;
 
-  handler_->search(locations, costing);
+  handler_->search(locations, costing, include_tile_coverage);
 }
 
 void Search::clear() {

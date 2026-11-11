@@ -25,6 +25,7 @@ Because the locate service is designed to work in tandem with the route service 
 | Options | Description |
 | :------------------ | :----------- |
 | `verbose` |  Can be set to `true` or `false`, but defaults to `false`. If set to `true` dense attribution of the given street or intersection will be returned. |
+| `include_tile_coverage` | Set to `true` to include `has_tiles_in_search_area` for each location. Defaults to `false`. |
 | `id` | Name your route request. If `id` is specified, the naming will be sent through to the response. |
 
 ## Outputs of a locate request
@@ -32,6 +33,8 @@ Because the locate service is designed to work in tandem with the route service 
 If a request has been named using the optional `id` key, then this `id` key and value will be echoed in the JSON response object.
 
 The locate results are returned as a JSON array, with one JSON object per input location in the order specified. In `verbose` mode details about the streets and intersections including mode of travel access, names, way ids, shape, side of street as well as the closest point to the input along these features will be returned. If `verbose` was not enabled only the closest point, way id and side of street will be returned. A warnings array may also be included. This array may contain warning objects informing about deprecated request parameters, clamped values etc. |
+
+With `include_tile_coverage` enabled, `has_tiles_in_search_area` is `true` when the search finds at least one available local graph tile within the location's effective `search_cutoff`, including neighboring tiles. An empty `edges` array with this flag set to `true` means the search had tile data but found no matching edges.
 
 Here are some sample results with `verbose` set to `false`:
 
