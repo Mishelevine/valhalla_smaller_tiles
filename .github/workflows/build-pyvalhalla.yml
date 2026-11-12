@@ -87,7 +87,7 @@ jobs:
             sqlite3 \
             wget
 
-      - name: Build and install prime_server
+      - name: Build and install prime_serverч
         run: |
           git clone \
             --depth 1 \
@@ -120,7 +120,7 @@ jobs:
           CIBW_ENVIRONMENT: >
             CMAKE_ARGS="-DVALHALLA_VERSION_MODIFIER=smaller-${{ github.sha }}"
             LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
-          MACOSX_DEPLOYMENT_TARGET: "14.0"
+          MACOSX_DEPLOYMENT_TARGET: "15.0"
         run: |
           python -m cibuildwheel \
             --platform macos \
